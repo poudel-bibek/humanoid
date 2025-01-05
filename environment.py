@@ -3,7 +3,6 @@ import time
 import numpy as np
 import mujoco
 
-PATH_TO_MODEL = './mujoco_menagerie/unitree_g1/scene_with_hands.xml'
 
 class SimpleEnv:
     def __init__(self, model, data):
