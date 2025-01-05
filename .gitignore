@@ -1,2 +1,4 @@
 .DS_Store
 .env
+main_test.py
+__pycache__
