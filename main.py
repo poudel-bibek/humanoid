@@ -1,3 +1,4 @@
+import os
 import torch
 import numpy as np
 import mujoco
@@ -93,6 +94,9 @@ def main():
         healthy_reward=1.0
     )
 
+    if not os.path.exists("./models"):
+        os.makedirs("./models")
+
     with mujoco.viewer.launch_passive(model, data) as viewer:
         for iteration in range(num_iterations):
             # 1) Collect a trajectory
@@ -138,8 +142,8 @@ def main():
             # If the eval reward is the best so far, save the model
             if eval_reward > best_avg_reward:
                 best_avg_reward = eval_reward
-                torch.save(policy.state_dict(), "best_policy.pth")
-                torch.save(value_network.state_dict(), "best_value.pth")
+                torch.save(policy.state_dict(), "./models/best_policy.pth")
+                torch.save(value_network.state_dict(), "./models/best_value.pth")
                 print(f"New best model saved with eval_reward={eval_reward:.3f}")
 
     print("Training complete!")
