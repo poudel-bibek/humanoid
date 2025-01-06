@@ -3,7 +3,10 @@ import torch
 import numpy as np
 import mujoco
 import torch.optim as optim
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+
 
 from environment import SimpleEnv
 from models import PolicyNetwork, ValueNetwork
@@ -96,6 +99,8 @@ def main():
 
     if not os.path.exists("./models"):
         os.makedirs("./models")
+    if not os.path.exists("./plots"):
+        os.makedirs("./plots")
 
     with mujoco.viewer.launch_passive(model, data) as viewer:
         for iteration in range(num_iterations):
@@ -166,7 +171,7 @@ def main():
     plt.legend()
 
     plt.tight_layout()
-    plt.show()
+    plt.savefig("./plots/training_metrics.png")
 
     # -------------- Final Save (if you want) --------------
     # Save final networks (not necessarily best)
