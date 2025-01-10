@@ -24,5 +24,8 @@ MJX runs on a all platforms supported by JAX: Nvidia and AMD GPUs, Apple Silicon
 For GPU: 
 
 mujoco_mjx
-
+ macOS specific
 For MacOS, the passive viewer requires using the mjpython launcher instead of regular python
+
+
+Encounter issues when running on WSL. 

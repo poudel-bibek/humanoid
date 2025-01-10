@@ -41,7 +41,11 @@ def collect_trajectory(env, policy, value_network, horizon=2048, gamma=0.99, vie
             break
 
         if viewer is not None:
-            viewer.sync()  # update rendering
+            # Handle different viewer types
+            if hasattr(viewer, 'sync'):  # macOS viewer
+                viewer.sync()
+            elif hasattr(viewer, 'render'):  # mujoco-python-viewer
+                viewer.render()
             time.sleep(0.01)
 
     trajectory = {
