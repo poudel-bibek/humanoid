@@ -1,5 +1,6 @@
 import mujoco
 import numpy as np
+from collections import deque
 
 class SimpleEnv:
     def __init__(self, model, data, forward_reward_weight=2.0, ctrl_cost_weight=0.005, healthy_reward=1.0):
@@ -39,8 +40,14 @@ class SimpleEnv:
             "total_reward": []
         }
 
+        self.last_action = np.zeros_like(self.data.ctrl)
+
+        # Add to initialization
+        self.reward_history = deque(maxlen=1000)
+
     def reset(self):
         mujoco.mj_resetData(self.model, self.data)
+        self.last_action = np.zeros_like(self.data.ctrl)
         return self._get_obs()
 
     def step(self, action):
@@ -103,3 +110,40 @@ class SimpleEnv:
     def _get_obs(self):
         """Return the concatenated position & velocity as observation."""
         return np.concatenate([self.data.qpos, self.data.qvel])
+
+    def compute_reward(self):
+        # Existing reward components...
+        
+        # Add stability bonus
+        up_vector = self.data.body_xpos[1] - self.data.body_xpos[0]
+        up_vector = up_vector / np.linalg.norm(up_vector)
+        stability_bonus = np.dot(up_vector, [0, 0, 1])  # Reward staying upright
+        
+        # Add smooth motion penalty
+        action_smoothness = -0.1 * np.square(self.data.ctrl - self.data.ctrl).mean()
+        
+        # Add progress reward
+        forward_velocity = self.data.qvel[0]  # Forward velocity
+        progress_reward = 1.0 * forward_velocity
+        
+        # Combine rewards
+        reward = (
+            progress_reward +
+            0.5 * stability_bonus +
+            action_smoothness
+        )
+        
+        # Store current action for next step
+        self.last_action = self.data.ctrl.copy()
+        
+        # Update history
+        self.reward_history.append(reward)
+        
+        # Normalize reward
+        if len(self.reward_history) > 1:
+            mean_reward = np.mean(self.reward_history)
+            std_reward = np.std(self.reward_history) + 1e-8
+            normalized_reward = (reward - mean_reward) / std_reward
+            return normalized_reward
+        
+        return reward

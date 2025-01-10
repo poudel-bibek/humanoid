@@ -1,54 +1,5 @@
-The incorporation of transformer architectures into reinforcement learning for robotic control complements RL's existing long-term planning capabilities in several distinct ways.
-While RL naturally optimizes for long-term rewards through value functions and policy gradients, it typically does so without explicit access to temporal patterns in the state history. 
-The transformer-based movement planner introduced in our architecture provides a complementary mechanism that directly processes and learns from sequences of states (s_{t-k}, ..., s_t), enabling the policy to identify 
-and utilize explicit temporal patterns that may be difficult for standard RL to discover through reward optimization alone. 
-This is particularly valuable for locomotion tasks where successful behaviors exhibit strong periodic structure and phase-dependent transitions, such as the coordination between limb movements during walking or running gaits.
+The incorporation of transformer architectures into reinforcement learning for robotic control complements RL's existing long-term planning capabilities in several distinct ways. While RL naturally optimizes for long-term rewards through value functions and policy gradients, it typically does so without explicit access to temporal patterns in the state history. The transformer-based movement planner introduced in our architecture provides a complementary mechanism that directly processes and learns from sequences of states (s_{t-k}, ..., s_t), enabling the policy to identify and utilize explicit temporal patterns that may be difficult for standard RL to discover through reward optimization alone. This is particularly valuable for locomotion tasks where successful behaviors exhibit strong periodic structure and phase-dependent transitions, such as the coordination between limb movements during walking or running gaits.
 
-The hybrid architecture combines the strengths of both approaches: RL's ability to optimize long-term reward signals with the transformer's ability to identify explicit temporal patterns in state sequences. 
-While RL can eventually learn periodic behaviors through reward optimization, the transformer's direct processing of state histories allows it to more quickly identify and exploit temporal patterns. 
-The transformer's parallel processing of state sequences and attention mechanism (computing weights α_{ij} = softmax(Q_iK_j^T/√d)) enables it to discover correlations between states at arbitrary time differences, 
-complementing RL's reward-based learning with explicit pattern recognition. 
-This synergy is particularly evident in locomotion tasks, where RL optimizes the overall objective while the transformer helps identify and maintain stable periodic gaits.
+The hybrid architecture combines the strengths of both approaches: RL's ability to optimize long-term reward signals with the transformer's ability to identify explicit temporal patterns in state sequences. While RL can eventually learn periodic behaviors through reward optimization, the transformer's direct processing of state histories allows it to more quickly identify and exploit temporal patterns. The transformer's parallel processing of state sequences and attention mechanism (computing weights α_{ij} = softmax(Q_iK_j^T/√d)) enables it to discover correlations between states at arbitrary time differences, complementing RL's reward-based learning with explicit pattern recognition. This synergy is particularly evident in locomotion tasks, where RL optimizes the overall objective while the transformer helps identify and maintain stable periodic gaits.
 
-Our ablation studies demonstrate the complementary nature of this hybrid approach, showing that while both standard RL and transformer-augmented policies eventually achieve similar final performance, 
-the hybrid architecture achieves a 27% improvement in learning efficiency and a 35% reduction in policy variance during training. 
-The transformer's pattern recognition abilities prove particularly valuable during the early stages of learning, where it helps identify successful movement primitives before RL has fully learned their long-term value. 
-This is evidenced by the emergence of structured attention patterns that correlate with periodic gait cycles, suggesting the transformer provides useful inductive biases that accelerate RL's discovery of effective locomotion strategies. 
-The architecture also demonstrates improved robustness to perturbations, as it can rapidly adjust its movement patterns by attending to similar historical situations, complementing RL's learned value estimates with explicit pattern matching.
-
-\section{Related Works}
-
-\subsection{Transformer-Based Control Architectures}
-Recent work has demonstrated the effectiveness of transformer architectures in robotic control tasks. The RT-1 Robotics Transformer~\cite{brohan2023rt} pioneered the approach of tokenizing robot inputs and outputs for real-time control, trained on a large dataset of 130,000 episodes covering 700+ tasks. This was followed by advances in humanoid locomotion control using causal transformers that process histories of proprioceptive observations and actions~\cite{reed2022generalist}. The transformer architecture has proven particularly effective at handling long-range dependencies and adapting behavior in-context without weight updates~\cite{chen2021decision}.
-
-\subsection{Reinforcement Learning for Locomotion}
-Traditional approaches to legged locomotion have relied heavily on model-free reinforcement learning algorithms like PPO and TRPO due to their stability and theoretical justification~\cite{schulman2017proximal}. Recent work has shown success in applying transformers to enhance these methods - for example, RobotKeyframing~\cite{smith2022robotkeyframing} demonstrated how transformer-based encoders can effectively handle variable numbers of pose targets for natural locomotion. Additionally, hybrid approaches combining deep reinforcement learning with heuristic policies have shown promise in bipedal locomotion tasks~\cite{lee2019robust}.
-
-\subsection{Multi-Goal and Offline Learning}
-The challenge of handling multiple objectives simultaneously has been addressed through various transformer-based approaches. TOP-ERL~\cite{yang2022transformer} introduced a novel algorithm enabling off-policy updates in episodic reinforcement learning using transformer-based critic architectures. Other work has focused on adapting decision transformers specifically for multi-goal robotic tasks in offline settings~\cite{furuta2021generalized}. These approaches allow for training on pre-collected datasets without requiring ongoing access to physical robots or simulations.
-
-\subsection{Real-World Applications}
-Recent advances have demonstrated successful transfer of transformer-based controllers to real robots. Notable examples include humanoid locomotion over challenging terrain~\cite{kumar2021rma} and quadrupedal locomotion using diffusion models~\cite{dao2023diffusion}. These implementations have shown improved zero-shot generalization capabilities and robust performance across different environmental conditions. The success of these approaches suggests that transformer architectures can effectively bridge the sim-to-real gap while maintaining real-time control capabilities.
-
-% References
-\begin{thebibliography}{99}
-\bibitem{brohan2023rt} Brohan, A., et al. "RT-1: Robotics Transformer for Real-World Control at Scale." arXiv preprint arXiv:2212.06817 (2023).
-
-\bibitem{reed2022generalist} Reed, S., et al. "A Generalist Agent." arXiv preprint arXiv:2205.06175 (2022).
-
-\bibitem{chen2021decision} Chen, L., et al. "Decision Transformer: Reinforcement Learning via Sequence Modeling." NeurIPS (2021).
-
-\bibitem{schulman2017proximal} Schulman, J., et al. "Proximal Policy Optimization Algorithms." arXiv preprint arXiv:1707.06347 (2017).
-
-\bibitem{smith2022robotkeyframing} Smith, L., et al. "RobotKeyframing: A New Approach to Robot Motion Design." ICRA (2022).
-
-\bibitem{lee2019robust} Lee, J., et al. "Robust Recovery Controller for a Quadrupedal Robot using Deep Reinforcement Learning." arXiv preprint arXiv:1901.07517 (2019).
-
-\bibitem{yang2022transformer} Yang, Y., et al. "Transformer-based Off-Policy Reinforcement Learning." ICLR (2022).
-
-\bibitem{furuta2021generalized} Furuta, H., et al. "Generalized Decision Transformer for Offline Hindsight Information Matching." arXiv preprint arXiv:2111.10364 (2021).
-
-\bibitem{kumar2021rma} Kumar, A., et al. "RMA: Rapid Motor Adaptation for Legged Robots." RSS (2021).
-
-\bibitem{dao2023diffusion} Dao, T., et al. "DiffMotion: Speech-Driven Gesture Generation Using Diffusion Models." arXiv preprint arXiv:2301.03460 (2023).
-\end{thebibliography}
+Our ablation studies demonstrate the complementary nature of this hybrid approach, showing that while both standard RL and transformer-augmented policies eventually achieve similar final performance, the hybrid architecture achieves a 27% improvement in learning efficiency and a 35% reduction in policy variance during training. The transformer's pattern recognition abilities prove particularly valuable during the early stages of learning, where it helps identify successful movement primitives before RL has fully learned their long-term value. This is evidenced by the emergence of structured attention patterns that correlate with periodic gait cycles, suggesting the transformer provides useful inductive biases that accelerate RL's discovery of effective locomotion strategies. The architecture also demonstrates improved robustness to perturbations, as it can rapidly adjust its movement patterns by attending to similar historical situations, complementing RL's learned value estimates with explicit pattern matching.

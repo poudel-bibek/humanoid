@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 
 # ------------------- PPO HELPER FUNCTIONS ------------------- #
-def collect_trajectory(env, policy, value_network, horizon=2048, gamma=0.99, viewer=None):
+def collect_trajectory(env, policy, value_network, horizon=2048, gamma=0.99, viewer=None, device='cpu'):
     """
     Run the policy in the environment for 'horizon' timesteps.
     Store (state, action, log_prob, reward, value) at each step.
@@ -18,43 +18,51 @@ def collect_trajectory(env, policy, value_network, horizon=2048, gamma=0.99, vie
     done = False
 
     for t in range(horizon):
-        obs_t = torch.as_tensor(obs, dtype=torch.float32)
+        obs_t = torch.as_tensor(obs, dtype=torch.float32).to(device)
 
         # Value estimate
-        value_t = value_network(obs_t.unsqueeze(0))
+        with torch.no_grad():
+            value_t = value_network(obs_t.unsqueeze(0))
 
         # Sample action
         with torch.no_grad():
             action_t, log_prob_t = policy.get_action(obs_t.unsqueeze(0))
 
-        action_np = action_t.squeeze(0).numpy()
+        # Convert action to numpy for environment
+        action_np = action_t.cpu().squeeze(0).numpy()
         next_obs, reward, done, info = env.step(action_np)
 
         states.append(obs_t)
         actions.append(action_t.squeeze(0))
         log_probs.append(log_prob_t.squeeze(0))
         rewards.append(reward)
-        values.append(value_t.item())
+        values.append(value_t.squeeze().to(device))  # Ensure value is on correct device
 
         obs = next_obs
         if done:
             break
 
         if viewer is not None:
-            # Handle different viewer types
-            if hasattr(viewer, 'sync'):  # macOS viewer
+            if hasattr(viewer, 'sync'):
                 viewer.sync()
-            elif hasattr(viewer, 'render'):  # mujoco-python-viewer
+            elif hasattr(viewer, 'render'):
                 viewer.render()
             time.sleep(0.01)
 
+    # Stack all tensors
     trajectory = {
-        "states": torch.stack(states),
-        "actions": torch.stack(actions),
-        "log_probs": torch.stack(log_probs),
-        "rewards": torch.tensor(rewards, dtype=torch.float32),
-        "values": torch.tensor(values, dtype=torch.float32),
+        "states": torch.stack(states).to(device),
+        "actions": torch.stack(actions).to(device),
+        "log_probs": torch.stack(log_probs).to(device),
+        "rewards": torch.tensor(rewards, dtype=torch.float32).to(device),
+        "values": torch.stack(values).to(device),  # Changed from tensor to stack
     }
+    
+    # Comment out debug prints
+    # print(f"Debug - Trajectory devices:")
+    # for k, v in trajectory.items():
+    #     print(f"{k}: {v.device}")
+        
     return trajectory
 
 
@@ -64,33 +72,42 @@ def compute_returns_and_advantages(trajectory, gamma=0.99):
       G_t = r_t + gamma*r_{t+1} + ...  (discounted returns)
     and advantage estimates:
       A_t = G_t - V(s_t)
-    
-    This is the simplest version (no GAE-lambda), but we show a structure
-    for lam if desired.
-    
-    Returns the final Tensors for 'returns' and 'advantages'.
     """
     rewards = trajectory["rewards"]
     values = trajectory["values"]
+    device = rewards.device  # Get the device from trajectory tensors
+    
+    # Comment out debug prints
+    # print(f"Debug - Rewards device: {rewards.device}, Values device: {values.device}")
+    
+    # Ensure values is on the same device
+    values = values.to(device)
+    
     length = len(rewards)
 
-    returns = torch.zeros(length, dtype=torch.float32)
-    advantages = torch.zeros(length, dtype=torch.float32)
+    # Create tensors on the same device
+    returns = torch.zeros(length, dtype=torch.float32, device=device)
+    advantages = torch.zeros(length, dtype=torch.float32, device=device)
 
     # Discounted returns
     running_return = 0.0
     for t in reversed(range(length)):
-        running_return = rewards[t] + gamma * running_return
+        running_return = rewards[t].item() + gamma * running_return  # Use .item() for scalar operations
         returns[t] = running_return
 
     # Advantage: returns - values
     advantages = returns - values
+    
+    # Comment out debug prints
+    # print(f"Debug - Returns device: {returns.device}, Advantages device: {advantages.device}")
+    
     return returns, advantages
 
 
 def ppo_update(policy, value_network, optimizer_policy, optimizer_value,
                trajectory, returns, advantages,
-               clip_range=0.2, value_coef=0.5, entropy_coef=0.01):
+               clip_range=0.2, value_coef=0.5, entropy_coef=0.01,
+               n_epochs=4, batch_size=64):
     """
     Perform one epoch of PPO updates over the entire trajectory data.
     Enhanced with better clipping and entropy bonus for exploration.
@@ -98,13 +115,10 @@ def ppo_update(policy, value_network, optimizer_policy, optimizer_value,
     states = trajectory["states"]
     actions = trajectory["actions"]
     old_log_probs = trajectory["log_probs"]
+    device = states.device
 
-    # Normalize advantages (important for training stability)
     advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
 
-    # Multiple epochs of PPO updates (important for sample efficiency)
-    n_epochs = 4
-    batch_size = 64
     n_samples = len(states)
     
     total_policy_loss = 0
@@ -112,7 +126,7 @@ def ppo_update(policy, value_network, optimizer_policy, optimizer_value,
     
     for _ in range(n_epochs):
         # Random permutation for batching
-        indices = torch.randperm(n_samples)
+        indices = torch.randperm(n_samples, device=device)
         
         for start_idx in range(0, n_samples, batch_size):
             # Get mini-batch

@@ -135,14 +135,21 @@ class HybridPolicyNetwork(nn.Module):
     def get_state_history(self, batch_size, obs_dim):
         """Get or create state history buffer for the given batch size"""
         if batch_size not in self.state_histories:
-            self.state_histories[batch_size] = torch.zeros(batch_size, self.sequence_length, obs_dim)
+            self.state_histories[batch_size] = torch.zeros(
+                batch_size, self.sequence_length, obs_dim,
+                device=next(self.parameters()).device  # Use same device as model
+            )
         return self.state_histories[batch_size]
         
     def update_state_history(self, state):
         """Update state history handling both batched and unbatched inputs"""
-        # Ensure state is 2D: [batch_size, obs_dim]
+        # Ensure state is 2D and on correct device
         if state.dim() == 1:
             state = state.unsqueeze(0)
+        
+        # Move state to same device as model if needed
+        if state.device != next(self.parameters()).device:
+            state = state.to(next(self.parameters()).device)
         
         batch_size, obs_dim = state.shape
         state_history = self.get_state_history(batch_size, obs_dim)
@@ -157,9 +164,13 @@ class HybridPolicyNetwork(nn.Module):
         return state_history
         
     def forward(self, obs):
-        # Ensure obs is 2D: [batch_size, obs_dim]
+        # Ensure obs is 2D and on correct device
         if obs.dim() == 1:
             obs = obs.unsqueeze(0)
+        
+        # Move obs to model's device if needed
+        device = next(self.parameters()).device
+        obs = obs.to(device)
             
         # Update and get state history
         state_history = self.update_state_history(obs)
@@ -167,6 +178,14 @@ class HybridPolicyNetwork(nn.Module):
         # Get future state predictions from transformer
         future_states = self.transformer(state_history)
         next_state_pred = future_states[:, -1]  # Take the last predicted state
+        
+        # Ensure both tensors are on same device before concatenating
+        next_state_pred = next_state_pred.to(device)
+        
+        # Comment out debug prints
+        # print(f"Debug - Forward pass devices:")
+        # print(f"obs device: {obs.device}")
+        # print(f"next_state_pred device: {next_state_pred.device}")
         
         # Concatenate current state with predicted next state
         combined_features = torch.cat([obs, next_state_pred], dim=-1)
@@ -182,6 +201,11 @@ class HybridPolicyNetwork(nn.Module):
         Sample an action from the policy's Gaussian distribution,
         and return the log probability of that action.
         """
+        # Ensure obs is on correct device
+        device = next(self.parameters()).device
+        if obs.device != device:
+            obs = obs.to(device)
+            
         mean, std = self.forward(obs)
         dist = torch.distributions.Normal(mean, std)
         action = dist.sample()
@@ -192,6 +216,13 @@ class HybridPolicyNetwork(nn.Module):
         """
         Given states and actions, compute the log probability under this policy.
         """
+        # Ensure inputs are on correct device
+        device = next(self.parameters()).device
+        if obs.device != device:
+            obs = obs.to(device)
+        if action.device != device:
+            action = action.to(device)
+            
         mean, std = self.forward(obs)
         dist = torch.distributions.Normal(mean, std)
         return dist.log_prob(action).sum(axis=-1)
