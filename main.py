@@ -11,7 +11,7 @@ import argparse
 
 
 from environment import SimpleEnv
-from models import PolicyNetwork, ValueNetwork
+from models import PolicyNetwork, ValueNetwork, HybridPolicyNetwork
 from ppo import collect_trajectory, compute_returns_and_advantages, ppo_update
 
 PATH_TO_MODEL = './mujoco_menagerie/unitree_g1/scene_with_hands.xml'
@@ -78,18 +78,18 @@ def main():
     # Create Policy and Value networks
     obs_dim = env.observation_dim
     act_dim = env.action_dim
-    policy = PolicyNetwork(obs_dim, act_dim, hidden_size=256)
+    policy = HybridPolicyNetwork(obs_dim, act_dim, hidden_size=256)
     value_network = ValueNetwork(obs_dim, hidden_size=256)
 
     # Optimizers
-    policy_optimizer = optim.Adam(policy.parameters(), lr=3e-4)
-    value_optimizer = optim.Adam(value_network.parameters(), lr=1e-3)
+    policy_optimizer = optim.Adam(policy.parameters(), lr=1e-4)
+    value_optimizer = optim.Adam(value_network.parameters(), lr=5e-4)
 
     # PPO hyperparameters
-    num_iterations = 500       # Increased from 10 to 500 for much longer training
-    horizon = 2048            # Increased from 1024 for longer episodes
-    gamma = 0.99
-    clip_range = 0.2
+    num_iterations = 1000       # Increased from 500
+    horizon = 2048             # Keep same
+    gamma = 0.99              # Keep same
+    clip_range = 0.2          # Keep same
 
     # Evaluation frequency
     eval_every = 10          # Evaluate every 10 iterations to track progress

@@ -22,6 +22,8 @@ To run:
 mjpython main.py
 ```
 
+mjpython main.py --platform macos
+
 
 MJX runs on a all platforms supported by JAX: Nvidia and AMD GPUs, Apple Silicon, and Google Cloud TPUs. (https://mujoco.readthedocs.io/en/stable/mjx.html)
 

@@ -2,16 +2,16 @@ import mujoco
 import numpy as np
 
 class SimpleEnv:
-    def __init__(self, model, data, forward_reward_weight=1.0, ctrl_cost_weight=0.01, healthy_reward=1.0):
+    def __init__(self, model, data, forward_reward_weight=2.0, ctrl_cost_weight=0.005, healthy_reward=1.0):
         """
         A simple environment that calculates a more complex reward.
 
         Args:
             model (MjModel): The MuJoCo model.
             data (MjData): The MuJoCo data associated with model.
-            forward_reward_weight (float): Weight for forward velocity reward.
-            ctrl_cost_weight (float): A penalty for using too much control/action
-            healthy_reward (float): Constant bonus reward for 'being alive'.
+            forward_reward_weight (float): Weight for forward velocity reward (increased from 1.0)
+            ctrl_cost_weight (float): Penalty for control actions (kept small to encourage exploration)
+            healthy_reward (float): Reward for staying healthy/stable
         """
         # Use the same model/data from outside
         self.model = model
@@ -25,6 +25,10 @@ class SimpleEnv:
         self.forward_reward_weight = forward_reward_weight
         self.ctrl_cost_weight = ctrl_cost_weight
         self.healthy_reward = healthy_reward
+
+        # Additional reward components
+        self.stability_cost_weight = 0.1  # New: penalize unstable poses
+        self.progress_bonus = 0.5  # New: bonus for consistent forward progress
 
         # For logging
         self.metrics_history = {
@@ -63,16 +67,26 @@ class SimpleEnv:
         # 2. Control cost (penalize large actions) calculated as -_ctrl_cost_weight * sum(action^2)
         ctrl_cost = self.ctrl_cost_weight * np.sum(np.square(action))
 
-        # 3. Survival bonus (always alive in this simple example)
+        # 3. Stability cost (new)
+        orientation = self.data.qpos[3:7]  # assuming quaternion orientation
+        upright_deviation = 1 - orientation[3]  # deviation from upright pose
+        stability_cost = self.stability_cost_weight * upright_deviation
+
+        # 4. Progress bonus (new)
+        if len(self.metrics_history["forward_reward"]) > 0:
+            prev_x = self.metrics_history["distance_from_origin"][-1]
+            curr_x = np.sqrt(self.data.qpos[0]**2 + self.data.qpos[1]**2)
+            progress = curr_x - prev_x
+            progress_bonus = self.progress_bonus * (progress > 0.01)  # Binary bonus for progress
+        else:
+            progress_bonus = 0
+
+        # 5. Survival bonus (unchanged)
         alive_bonus = self.healthy_reward
 
-        # 4. Distance from origin (just an example metric — can be used as penalty or for logging)
-        #    We'll measure the distance of the main body (index 0) from origin
-        x_pos, y_pos = self.data.qpos[0], self.data.qpos[1]
-        dist_from_origin = np.sqrt(x_pos**2 + y_pos**2)
-
         # Combine them into a total reward
-        total_reward = forward_reward + alive_bonus - ctrl_cost
+        total_reward = (forward_reward + alive_bonus + progress_bonus - 
+                       ctrl_cost - stability_cost)
         done = False  # for demonstration, we won't terminate here
         info = {}
 
@@ -80,7 +94,8 @@ class SimpleEnv:
         self.metrics_history["forward_reward"].append(forward_reward)
         self.metrics_history["reward_quadctrl"].append(-ctrl_cost)  # (negative indicates penalty)
         self.metrics_history["reward_alive"].append(alive_bonus)
-        self.metrics_history["distance_from_origin"].append(dist_from_origin)
+        self.metrics_history["distance_from_origin"].append(
+            np.sqrt(self.data.qpos[0]**2 + self.data.qpos[1]**2))
         self.metrics_history["total_reward"].append(total_reward)
 
         return obs, total_reward, done, info
