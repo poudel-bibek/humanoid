@@ -7,6 +7,10 @@ Install mujoco:
 
 Apple Silicon: 
 
+Install git modules: 
+```
+git submodule update --init --recursive
+```
 
 set the appropriate graphics backend before running: 
 # export MUJOCO_GL=glfw 
@@ -29,3 +33,9 @@ For MacOS, the passive viewer requires using the mjpython launcher instead of re
 
 
 Encounter issues when running on WSL. 
+
+Argument: 
+```
+--no-render
+--platform
+```

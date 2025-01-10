@@ -54,8 +54,11 @@ def evaluate_policy(env, policy, num_episodes=5, horizon=500, render=False):
 def main():
     # Parse command line arguments
     parser = argparse.ArgumentParser(description='Train PPO agent')
-    parser.add_argument('--force-macos', action='store_true', help='Force macOS viewer behavior')
-    parser.add_argument('--force-other', action='store_true', help='Force non-macOS viewer behavior')
+    parser.add_argument('--platform', type=str, choices=['auto', 'macos', 'linux'], 
+                       default='auto', help='Platform-specific viewer (auto, macos, or linux)')
+    parser.add_argument('--no-render', action='store_true', help='Disable visualization')
+    parser.add_argument('--render-mode', type=str, choices=['window', 'offscreen'], 
+                       default='window', help='Rendering mode (window or offscreen)')
     args = parser.parse_args()
 
     PATH_TO_MODEL = './mujoco_menagerie/unitree_g1/scene_with_hands.xml'
@@ -113,91 +116,105 @@ def main():
     if not os.path.exists("./plots"):
         os.makedirs("./plots")
 
-    # Determine which viewer to use based on platform and args
-    use_macos_viewer = (platform.system() == 'Darwin' and not args.force_other) or args.force_macos
-
-    if use_macos_viewer:
-        # Use the built-in MuJoCo viewer for macOS
-        viewer_context = mujoco.viewer.launch_passive(model, data)
+    # Initialize viewer as None
+    viewer = None
+    
+    # Determine platform for viewer type
+    if args.platform == 'auto':
+        use_macos_viewer = platform.system() == 'Darwin'
     else:
-        # Use mujoco-python-viewer for other platforms
-        try:
-            import mujoco_viewer
-            os.environ['MUJOCO_GL'] = 'egl'  # Use EGL backend for WSL
-            viewer_context = mujoco_viewer.MujocoViewer(model, data, render_mode='window')
-        except ImportError:
-            print("Please install mujoco-python-viewer: pip install mujoco-python-viewer")
-            return
-        except Exception as e:
-            print(f"Error initializing viewer: {e}")
-            print("Trying offscreen rendering...")
-            try:
-                viewer_context = mujoco_viewer.MujocoViewer(model, data, render_mode='offscreen')
-            except Exception as e:
-                print(f"Offscreen rendering also failed: {e}")
-                print("Running without visualization...")
-                from contextlib import nullcontext
-                viewer_context = nullcontext()
+        use_macos_viewer = args.platform == 'macos'
 
     try:
-        with viewer_context as viewer:
-            for iteration in range(num_iterations):
-                # 1) Collect a trajectory
-                trajectory = collect_trajectory(env, policy, value_network,
-                                             horizon=horizon, gamma=gamma, viewer=viewer)
+        # Initialize viewer based on settings
+        if args.no_render:
+            print("Running without visualization as requested...")
+        else:
+            if use_macos_viewer:
+                # Use the built-in MuJoCo viewer for macOS
+                try:
+                    viewer = mujoco.viewer.launch_passive(model, data)
+                except Exception as e:
+                    print(f"Failed to initialize macOS viewer: {e}")
+                    print("Running without visualization...")
+            else:
+                # Use mujoco-python-viewer for other platforms
+                try:
+                    import mujoco_viewer
+                    viewer = mujoco_viewer.MujocoViewer(
+                        model, 
+                        data,
+                        mode=args.render_mode,
+                        title="Humanoid Training",
+                        hide_menus=False
+                    )
+                except ImportError:
+                    print("Please install mujoco-python-viewer: pip install mujoco-python-viewer")
+                    return
+                except Exception as e:
+                    print(f"Error initializing viewer: {e}")
+                    print("Running without visualization...")
 
-                # 2) Compute returns & advantages
-                returns, advantages = compute_returns_and_advantages(trajectory, gamma=gamma)
+        # Main training loop
+        for iteration in range(num_iterations):
+            # 1) Collect a trajectory
+            trajectory = collect_trajectory(env, policy, value_network,
+                                         horizon=horizon, gamma=gamma, viewer=viewer)
 
-                # 3) PPO update
-                policy_loss, value_loss = ppo_update(
-                    policy,
-                    value_network,
-                    policy_optimizer,
-                    value_optimizer,
-                    trajectory,
-                    returns,
-                    advantages,
-                    clip_range=clip_range
-                )
+            # 2) Compute returns & advantages
+            returns, advantages = compute_returns_and_advantages(trajectory, gamma=gamma)
 
-                # Logging: average reward in the last horizon steps
-                if len(env.metrics_history["total_reward"]) >= horizon:
-                    avg_reward = np.mean(env.metrics_history["total_reward"][-horizon:])
-                else:
-                    avg_reward = np.mean(env.metrics_history["total_reward"])
+            # 3) PPO update
+            policy_loss, value_loss = ppo_update(
+                policy,
+                value_network,
+                policy_optimizer,
+                value_optimizer,
+                trajectory,
+                returns,
+                advantages,
+                clip_range=clip_range
+            )
 
-                avg_reward_per_iter.append(avg_reward)
+            # Logging: average reward in the last horizon steps
+            if len(env.metrics_history["total_reward"]) >= horizon:
+                avg_reward = np.mean(env.metrics_history["total_reward"][-horizon:])
+            else:
+                avg_reward = np.mean(env.metrics_history["total_reward"])
 
-                # Distance from origin (last step recorded in the environment)
-                dist_from_origin = env.metrics_history["distance_from_origin"][-1]
-                dist_from_origin_iter.append(dist_from_origin)
+            avg_reward_per_iter.append(avg_reward)
 
-                print(f"Iter {iteration+1}/{num_iterations} | "
-                      f"Policy Loss: {policy_loss:.3f} | "
-                      f"Value Loss: {value_loss:.3f} | "
-                      f"Avg Reward (train): {avg_reward:.3f}")
+            # Distance from origin (last step recorded in the environment)
+            dist_from_origin = env.metrics_history["distance_from_origin"][-1]
+            dist_from_origin_iter.append(dist_from_origin)
 
-                # ---------------- Evaluate the current policy ----------------
-                eval_reward = evaluate_policy(test_env, policy, num_episodes=3, horizon=500)
-                print(f"Evaluation Reward: {eval_reward:.3f}")
+            print(f"Iter {iteration+1}/{num_iterations} | "
+                  f"Policy Loss: {policy_loss:.3f} | "
+                  f"Value Loss: {value_loss:.3f} | "
+                  f"Avg Reward (train): {avg_reward:.3f}")
 
-                # If the eval reward is the best so far, save the model
-                if eval_reward > best_avg_reward:
-                    best_avg_reward = eval_reward
-                    torch.save(policy.state_dict(), "./models/best_policy.pth")
-                    torch.save(value_network.state_dict(), "./models/best_value.pth")
-                    print(f"New best model saved with eval_reward={eval_reward:.3f}")
+            # ---------------- Evaluate the current policy ----------------
+            eval_reward = evaluate_policy(test_env, policy, num_episodes=3, horizon=500)
+            print(f"Evaluation Reward: {eval_reward:.3f}")
 
-                # Check if viewer is still alive (for non-macOS viewer)
-                if not use_macos_viewer and viewer is not None and hasattr(viewer, 'is_alive') and not viewer.is_alive:
+            # If the eval reward is the best so far, save the model
+            if eval_reward > best_avg_reward:
+                best_avg_reward = eval_reward
+                torch.save(policy.state_dict(), "./models/best_policy.pth")
+                torch.save(value_network.state_dict(), "./models/best_value.pth")
+                print(f"New best model saved with eval_reward={eval_reward:.3f}")
+
+            # Check if viewer is still alive (for non-macOS viewer)
+            if not use_macos_viewer and viewer is not None:
+                if hasattr(viewer, 'is_alive') and not viewer.is_alive:
                     print("Viewer window was closed. Stopping training.")
                     break
 
     finally:
-        # Clean up the viewer if using mujoco-python-viewer
-        if not use_macos_viewer and viewer is not None and hasattr(viewer, 'close'):
-            viewer.close()
+        # Clean up the viewer
+        if not use_macos_viewer and viewer is not None:
+            if hasattr(viewer, 'close'):
+                viewer.close()
 
     print("Training complete!")
 
