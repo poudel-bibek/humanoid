@@ -51,15 +51,6 @@ def evaluate_policy(env, policy, num_episodes=5, horizon=500, render=False, devi
 def load_saved_model(policy, value_net, model_dir, device):
     """
     Load the best saved policy and value network from the specified directory.
-    
-    Args:
-        policy: Policy network instance
-        value_net: Value network instance
-        model_dir: Directory containing the saved models
-        device: Device to load the models to
-        
-    Returns:
-        Tuple of (loaded_policy, loaded_value_net)
     """
     # Check if directory exists
     if not os.path.exists(model_dir):
@@ -77,11 +68,13 @@ def load_saved_model(policy, value_net, model_dir, device):
     value_path = next((f for f in value_files if 'best' in f.lower()), value_files[-1])
     
     print(f"Loading policy from: {policy_path}")
-    policy.load_state_dict(torch.load(policy_path, map_location=device))
+    # Add weights_only=True to prevent the warning
+    policy.load_state_dict(torch.load(policy_path, map_location=device, weights_only=True))
     
     if value_path:
         print(f"Loading value network from: {value_path}")
-        value_net.load_state_dict(torch.load(value_path, map_location=device))
+        # Add weights_only=True to prevent the warning
+        value_net.load_state_dict(torch.load(value_path, map_location=device, weights_only=True))
     
     return policy, value_net
 
@@ -364,10 +357,16 @@ def main():
                 # Save if best
                 if eval_reward > best_avg_reward:
                     best_avg_reward = eval_reward
-                    torch.save(policy.state_dict(), 
-                             os.path.join(config['models_dir'], "best_policy.pth"))
-                    torch.save(value_network.state_dict(), 
-                             os.path.join(config['models_dir'], "best_value.pth"))
+                    torch.save(
+                        policy.state_dict(), 
+                        os.path.join(config['models_dir'], "best_policy.pth"),
+                        _use_new_zipfile_serialization=True
+                    )
+                    torch.save(
+                        value_network.state_dict(), 
+                        os.path.join(config['models_dir'], "best_value.pth"),
+                        _use_new_zipfile_serialization=True
+                    )
                     print(f"New best model saved with eval_reward={eval_reward:.3f}")
                 
             # Save periodic checkpoints
@@ -401,8 +400,16 @@ def main():
 
     # -------------- Final Save (if you want) --------------
     # Save final networks (not necessarily best)
-    torch.save(policy.state_dict(), "./models/final_policy.pth")
-    torch.save(value_network.state_dict(), "./models/final_value.pth")
+    torch.save(
+        policy.state_dict(), 
+        "./models/final_policy.pth",
+        _use_new_zipfile_serialization=True
+    )
+    torch.save(
+        value_network.state_dict(), 
+        "./models/final_value.pth",
+        _use_new_zipfile_serialization=True
+    )
     print("Final models saved to disk.")
 
 # Entry point
