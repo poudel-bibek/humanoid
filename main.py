@@ -59,26 +59,29 @@ def main():
     env = SimpleEnv(
         model, 
         data, 
-        forward_reward_weight=1.0,  # hyperparams to tweak
-        ctrl_cost_weight=0.01,
-        healthy_reward=1.0
+        forward_reward_weight=2.0,    # Increased to emphasize forward movement
+        ctrl_cost_weight=0.005,       # Reduced to allow more exploration
+        healthy_reward=1.5            # Increased to emphasize stability
     )
 
     # Create Policy and Value networks
     obs_dim = env.observation_dim
     act_dim = env.action_dim
-    policy = PolicyNetwork(obs_dim, act_dim, hidden_size=64)
-    value_network = ValueNetwork(obs_dim, hidden_size=64)
+    policy = PolicyNetwork(obs_dim, act_dim, hidden_size=256)
+    value_network = ValueNetwork(obs_dim, hidden_size=256)
 
     # Optimizers
     policy_optimizer = optim.Adam(policy.parameters(), lr=3e-4)
     value_optimizer = optim.Adam(value_network.parameters(), lr=1e-3)
 
     # PPO hyperparameters
-    num_iterations = 10       # number of outer training loops
-    horizon = 1024            # how many steps to collect per iteration
+    num_iterations = 500       # Increased from 10 to 500 for much longer training
+    horizon = 2048            # Increased from 1024 for longer episodes
     gamma = 0.99
     clip_range = 0.2
+
+    # Evaluation frequency
+    eval_every = 10          # Evaluate every 10 iterations to track progress
 
     # Tracking for plotting
     avg_reward_per_iter = []
@@ -92,9 +95,9 @@ def main():
     test_env = SimpleEnv(
         model,
         data,
-        forward_reward_weight=1.0,
-        ctrl_cost_weight=0.01,
-        healthy_reward=1.0
+        forward_reward_weight=2.0,
+        ctrl_cost_weight=0.005,
+        healthy_reward=1.5
     )
 
     if not os.path.exists("./models"):
