@@ -116,15 +116,12 @@ def main():
     # Device setup
     if args.use_gpu:
         if platform.system() == 'Darwin':  # macOS
-            try:
-                import mlx.core as mx
-                device = mx.Device(target="GPU")
-                mx.set_default_device(device)
-                print("Using Apple GPU (MLX)")
-                device = 'mlx'
-            except ImportError:
-                print("MLX not found. Falling back to CPU.")
-                device = 'cpu'
+            if torch.backends.mps.is_available():
+                device = torch.device('mps')
+                print("Using Apple Metal GPU (MPS)")
+            else:
+                print("MPS not available. Falling back to CPU.")
+                device = torch.device('cpu')
         else:  # Linux/Windows
             if torch.cuda.is_available():
                 device = torch.device('cuda')
